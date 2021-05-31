@@ -14,6 +14,12 @@ api_version = "v1"
 class AuthorizationRequired(Exception):
     pass
 
+class UnexpectedResponse(Exception):
+    pass
+
+class RateLimited(Exception):
+    pass
+
 
 class SurfsharkAPI():
     def __init__(self, tokens=None):
@@ -35,7 +41,10 @@ class SurfsharkAPI():
             kwargs.setdefault("headers", {})
             kwargs["headers"]["Authorization"] = "Bearer " + self.token
         path = api_url + version + "/" + path 
-        return requests.get(path, *args, **kwargs)
+        r = requests.get(path, *args, **kwargs)
+        if r.status_code == 429:
+            raise RateLimited("Too Many Requests")
+        return r
 
     def _post(self, path, *args, version=None, no_auth=False, **kwargs):
         if version is None:
@@ -47,7 +56,10 @@ class SurfsharkAPI():
             kwargs.setdefault("headers", {})
             kwargs["headers"]["Authorization"] = "Bearer " + self.token
         path = api_url + version + "/" + path 
-        return requests.post(path, *args, **kwargs)
+        r = requests.post(path, *args, **kwargs)
+        if r.status_code == 429:
+            raise RateLimited("Too Many Requests", r)
+        return r
 
 
     def getAccountUserMe(self):
@@ -137,21 +149,25 @@ class SurfsharkAPI():
         if r.status_code == 401:
             return None
 
+        need_2fa = False
+        if r.status_code == 423:
+            need_2fa = True
+
         j = r.json()
         if set_token:
             self.token = j["token"]
             self.renew_token = j["renewToken"]
-        return TokenResponse(j)
+
+        return TokenResponse(j), need_2fa
 
     def postAutoLoginHash(self, hashcode, set_token=True):
         r = self._post("auth/remote", no_auth=True, json={"hash": hashcode})
         j = r.json()
-        if not j:
-            return None
         if set_token:
             self.token = j["token"]
             self.renew_token = j["renewToken"]
         return TokenResponse(j)
+        return r.json()
 
 
     def postGeneratePublicKey(self, public_key):
@@ -172,6 +188,20 @@ class SurfsharkAPI():
             return True
         else:
             return False
+
+    def postTwoFactorAuthorization(self, code):
+        if not code:
+            return False
+        headers = {"Authorization": "Bearer " + code}
+        r = self._post("auth/activate", headers=headers, json={"otp": code})
+        if r.status_code == 204:
+            return True
+        elif r.status_code == 400:
+            j = r.json()
+            if "message" in j and j["message"] == "Invalid OTP provided":
+                return False
+            raise UnexpectedResponse(j.content)
+
 
 
     #def deleteServerKey(self, identifier: str):
@@ -222,10 +252,8 @@ class SurfsharkAPI():
 
     # getLatestVersionInfo
     # getIncidentInfo
-    # postMobileCodeAuthorization
     # postPaymentGoogleValidate
     # postPostponeUserRating
-    # postTwoFactorAuthorization
     # sendConnectionRating
     # sendFeedbackRejected
     # sendUserFeedback
