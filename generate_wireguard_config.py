@@ -3,14 +3,23 @@
 
 from surfshark.UserSession import UserSession
 from getpass import getpass
-
-username = input("Username: ")
-password = getpass()
+import time
 
 sess = UserSession()
-if not sess.login(username, password):
-    print("Login failed")
-    exit(1)
+
+username = input("Username (blank for tv code login): ")
+if not username:
+    r = sess.api.postCreateTvAuthorization()
+    print(f"Code: {r['code']}")
+    print("Waiting... ", end="", flush=True)
+    while not sess.api.postAutoLoginHash(r['hash']):
+        time.sleep(2)
+else:
+    password = getpass()
+
+    if not sess.login(username, password):
+        print("Login failed")
+        exit(1)
 
 print("Logged in")
 wg_pubkey = input("Wireguard pubkey: ")

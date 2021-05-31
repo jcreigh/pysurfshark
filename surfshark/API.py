@@ -143,14 +143,15 @@ class SurfsharkAPI():
             self.renew_token = j["renewToken"]
         return TokenResponse(j)
 
-    def postAutoLoginHash(self, auto_login_authorization): # AutoLoginAuthorization
-        r = self._post("auth/remote", no_auth=True, json=auto_login_authorization)
+    def postAutoLoginHash(self, hashcode, set_token=True):
+        r = self._post("auth/remote", no_auth=True, json={"hash": hashcode})
         j = r.json()
+        if not j:
+            return None
         if set_token:
             self.token = j["token"]
             self.renew_token = j["renewToken"]
         return TokenResponse(j)
-        return r.json() # TokenResponse
 
 
     def postGeneratePublicKey(self, public_key):
@@ -160,6 +161,17 @@ class SurfsharkAPI():
     def postValidatePublicKey(self, public_key):
         r = self._post("account/users/public-keys/validate", json={"pubKey": public_key})
         return r.json()
+
+    def postCreateTvAuthorization(self):
+        r = self._post("account/authorization/create", no_auth=True)
+        return r.json()
+
+    def postMobileCodeAuthorization(self, code):
+        r = self._post("account/authorization/assign", json={"code": code})
+        if r.status_code == 200:
+            return True
+        else:
+            return False
 
 
     #def deleteServerKey(self, identifier: str):
@@ -213,7 +225,6 @@ class SurfsharkAPI():
     # postMobileCodeAuthorization
     # postPaymentGoogleValidate
     # postPostponeUserRating
-    # postCreateTvAuthorization
     # postTwoFactorAuthorization
     # sendConnectionRating
     # sendFeedbackRejected
