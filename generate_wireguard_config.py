@@ -17,9 +17,17 @@ if not username:
 else:
     password = getpass()
 
-    if not sess.login(username, password):
-        print("Login failed")
+    ret = sess.login(username, password)
+    if ret == UserSession.FAIL:
+        print("Failed")
         exit(1)
+    elif ret == UserSession.NEED_2FA:
+        print("2FA Required")
+        while 1:
+            code = input("Code: ")
+            if sess.submit2FA(code):
+                break
+            print("Failed, try again")
 
 print("Logged in")
 wg_pubkey = input("Wireguard pubkey: ")

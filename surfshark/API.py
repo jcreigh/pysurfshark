@@ -23,6 +23,7 @@ class RateLimited(Exception):
 
 class SurfsharkAPI():
     def __init__(self, tokens=None):
+        self.need_2fa = False
         if tokens is None:
             self.token = None
             self.renew_token = None
@@ -60,6 +61,16 @@ class SurfsharkAPI():
         if r.status_code == 429:
             raise RateLimited("Too Many Requests", r)
         return r
+
+
+    def checkAuthenticated(self):
+        try:
+            return self.getAccountUserMe() is not None
+        except AuthorizationRequired:
+            return False
+
+    def renewAuth(self):
+        return self.postAuthLogin("renew")
 
 
     def getAccountUserMe(self):
@@ -134,9 +145,6 @@ class SurfsharkAPI():
         r = self._get("proposal/feedback?" + query)
         return r.json()
 
-    def renewAuth(self):
-        return self.postAuthLogin("renew")
-
     def postAuthLogin(self, username_or_token, password=None, set_token=True):
         if password is None:
             if username_or_token == "renew":
@@ -149,25 +157,27 @@ class SurfsharkAPI():
         if r.status_code == 401:
             return None
 
-        need_2fa = False
         if r.status_code == 423:
-            need_2fa = True
+            self.need_2fa = True
 
         j = r.json()
         if set_token:
             self.token = j["token"]
             self.renew_token = j["renewToken"]
 
-        return TokenResponse(j), need_2fa
+        return TokenResponse(j), not self.need_2fa
 
     def postAutoLoginHash(self, hashcode, set_token=True):
         r = self._post("auth/remote", no_auth=True, json={"hash": hashcode})
+        if r.status_code not in [200, 404]:
+            raise UnexpectedResponse(r.content, r)
+        if r.status_code == 404:
+            return None
         j = r.json()
         if set_token:
             self.token = j["token"]
             self.renew_token = j["renewToken"]
         return TokenResponse(j)
-        return r.json()
 
 
     def postGeneratePublicKey(self, public_key):
@@ -192,15 +202,16 @@ class SurfsharkAPI():
     def postTwoFactorAuthorization(self, code):
         if not code:
             return False
-        headers = {"Authorization": "Bearer " + code}
-        r = self._post("auth/activate", headers=headers, json={"otp": code})
+        r = self._post("auth/activate", json={"otp": code})
         if r.status_code == 204:
             return True
+        elif r.status_code == 403:
+            return False
         elif r.status_code == 400:
             j = r.json()
             if "message" in j and j["message"] == "Invalid OTP provided":
                 return False
-            raise UnexpectedResponse(j.content)
+        raise UnexpectedResponse(r.content, r)
 
 
 
