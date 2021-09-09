@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from surfshark.UserSession import UserSession
+from surfshark import getMainPublicKey
 from getpass import getpass
 import time
 
@@ -41,23 +42,21 @@ for i, s in enumerate(servers):
 num = int(input("Enter location number: "))
 server = servers[num]
 
-import subprocess
-main_pubkey = subprocess.check_output(["dig", "+short", "TXT", "wgs.prod.surfshark.com"]).strip()[13:-2].decode()
+main_pubkey = getMainPublicKey()
 
 print(f"""
 [Interface]
 Address = 10.14.0.2/16
 PrivateKey =
 
-[Peer]
+[Peer]  # Surfshark: Main Server
 PublicKey = {main_pubkey}
 AllowedIPs = 172.16.0.36/32
 EndPoint = wgs.prod.surfshark.com:51820
 
-[Peer]
+[Peer]  # Surfshark: {server.country} {server.location}
 PublicKey = {server.pubKey}
 AllowedIPs =
 EndPoint = {server.connectionName}:51820
 """)
 
-[]

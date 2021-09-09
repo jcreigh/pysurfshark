@@ -18,3 +18,17 @@ class JsonObject(UserDict):
     #        self.data[attr] = value
     #    else:
     #        object.__setattr__(self, attr, value)
+
+
+def getMainPublicKey():
+    import subprocess
+    try:
+        main_pubkey = subprocess.check_output(["dig", "+short", "TXT", "wgs.prod.surfshark.com"]).strip()[13:-2].decode()
+    except FileNotFoundError:
+        try:
+            output = subprocess.check_output(["nslookup", "-q=txt", "wgs.prod.surfshark.com"])
+            main_pubkey = output.split(b'public_key', 1)[1].split(b']', 1)[0][1:]
+        except FileNotFoundError:
+            raise RuntimeError('Could not lookup Surfshark\'s main public key. Install dig or nslookup')
+
+    return main_pubkey
